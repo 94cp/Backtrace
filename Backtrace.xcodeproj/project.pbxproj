@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E3A243E725ED42EE00EA3DE5 /* backtrace.c in Sources */ = {isa = PBXBuildFile; fileRef = E3A243E625ED42EE00EA3DE5 /* backtrace.c */; };
+		E3A243E825ED42EE00EA3DE5 /* backtrace.c in Sources */ = {isa = PBXBuildFile; fileRef = E3A243E625ED42EE00EA3DE5 /* backtrace.c */; };
+		E3A243E925ED42EE00EA3DE5 /* backtrace.c in Sources */ = {isa = PBXBuildFile; fileRef = E3A243E625ED42EE00EA3DE5 /* backtrace.c */; };
+		E3A243EA25ED42EE00EA3DE5 /* backtrace.c in Sources */ = {isa = PBXBuildFile; fileRef = E3A243E625ED42EE00EA3DE5 /* backtrace.c */; };
 		E3E8167725E6A83B00D9EAF7 /* Tests_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E8167625E6A83B00D9EAF7 /* Tests_iOS.swift */; };
 		E3E8168225E6A83B00D9EAF7 /* Tests_macOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E8168125E6A83B00D9EAF7 /* Tests_macOS.swift */; };
 		E3E8168425E6A83B00D9EAF7 /* BacktraceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E8165B25E6A83700D9EAF7 /* BacktraceApp.swift */; };
@@ -15,10 +19,6 @@
 		E3E8168725E6A83B00D9EAF7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E8165C25E6A83700D9EAF7 /* ContentView.swift */; };
 		E3E8168825E6A83B00D9EAF7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E3E8165D25E6A83B00D9EAF7 /* Assets.xcassets */; };
 		E3E8168925E6A83B00D9EAF7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E3E8165D25E6A83B00D9EAF7 /* Assets.xcassets */; };
-		E3E816A225E6A96A00D9EAF7 /* mach_backtrace.c in Sources */ = {isa = PBXBuildFile; fileRef = E3E816A125E6A96A00D9EAF7 /* mach_backtrace.c */; };
-		E3E816A325E6A96A00D9EAF7 /* mach_backtrace.c in Sources */ = {isa = PBXBuildFile; fileRef = E3E816A125E6A96A00D9EAF7 /* mach_backtrace.c */; };
-		E3E816A425E6A96A00D9EAF7 /* mach_backtrace.c in Sources */ = {isa = PBXBuildFile; fileRef = E3E816A125E6A96A00D9EAF7 /* mach_backtrace.c */; };
-		E3E816A525E6A96A00D9EAF7 /* mach_backtrace.c in Sources */ = {isa = PBXBuildFile; fileRef = E3E816A125E6A96A00D9EAF7 /* mach_backtrace.c */; };
 		E3E816AB25E6A9A800D9EAF7 /* Backtrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E816AA25E6A9A800D9EAF7 /* Backtrace.swift */; };
 		E3E816AC25E6A9A800D9EAF7 /* Backtrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E816AA25E6A9A800D9EAF7 /* Backtrace.swift */; };
 		E3E816AD25E6A9A800D9EAF7 /* Backtrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E816AA25E6A9A800D9EAF7 /* Backtrace.swift */; };
@@ -43,6 +43,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		E3A243E525ED42EE00EA3DE5 /* backtrace.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = backtrace.h; sourceTree = "<group>"; };
+		E3A243E625ED42EE00EA3DE5 /* backtrace.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = backtrace.c; sourceTree = "<group>"; };
 		E3E8165B25E6A83700D9EAF7 /* BacktraceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktraceApp.swift; sourceTree = "<group>"; };
 		E3E8165C25E6A83700D9EAF7 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		E3E8165D25E6A83B00D9EAF7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -57,12 +59,6 @@
 		E3E8167D25E6A83B00D9EAF7 /* Tests macOS.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Tests macOS.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E3E8168125E6A83B00D9EAF7 /* Tests_macOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests_macOS.swift; sourceTree = "<group>"; };
 		E3E8168325E6A83B00D9EAF7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		E3E8169C25E6A96900D9EAF7 /* Backtrace (iOS)-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Backtrace (iOS)-Bridging-Header.h"; sourceTree = "<group>"; };
-		E3E8169D25E6A96900D9EAF7 /* Backtrace (macOS)-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Backtrace (macOS)-Bridging-Header.h"; sourceTree = "<group>"; };
-		E3E8169E25E6A96900D9EAF7 /* Tests iOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Tests iOS-Bridging-Header.h"; sourceTree = "<group>"; };
-		E3E8169F25E6A96900D9EAF7 /* Tests macOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Tests macOS-Bridging-Header.h"; sourceTree = "<group>"; };
-		E3E816A025E6A96A00D9EAF7 /* mach_backtrace.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mach_backtrace.h; sourceTree = "<group>"; };
-		E3E816A125E6A96A00D9EAF7 /* mach_backtrace.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = mach_backtrace.c; sourceTree = "<group>"; };
 		E3E816AA25E6A9A800D9EAF7 /* Backtrace.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Backtrace.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -117,12 +113,8 @@
 				E3E8165C25E6A83700D9EAF7 /* ContentView.swift */,
 				E3E8165D25E6A83B00D9EAF7 /* Assets.xcassets */,
 				E3E816AA25E6A9A800D9EAF7 /* Backtrace.swift */,
-				E3E816A025E6A96A00D9EAF7 /* mach_backtrace.h */,
-				E3E816A125E6A96A00D9EAF7 /* mach_backtrace.c */,
-				E3E8169C25E6A96900D9EAF7 /* Backtrace (iOS)-Bridging-Header.h */,
-				E3E8169D25E6A96900D9EAF7 /* Backtrace (macOS)-Bridging-Header.h */,
-				E3E8169E25E6A96900D9EAF7 /* Tests iOS-Bridging-Header.h */,
-				E3E8169F25E6A96900D9EAF7 /* Tests macOS-Bridging-Header.h */,
+				E3A243E525ED42EE00EA3DE5 /* backtrace.h */,
+				E3A243E625ED42EE00EA3DE5 /* backtrace.c */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -334,10 +326,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E3A243E725ED42EE00EA3DE5 /* backtrace.c in Sources */,
 				E3E8168625E6A83B00D9EAF7 /* ContentView.swift in Sources */,
 				E3E8168425E6A83B00D9EAF7 /* BacktraceApp.swift in Sources */,
 				E3E816AB25E6A9A800D9EAF7 /* Backtrace.swift in Sources */,
-				E3E816A225E6A96A00D9EAF7 /* mach_backtrace.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -345,10 +337,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E3A243E825ED42EE00EA3DE5 /* backtrace.c in Sources */,
 				E3E8168725E6A83B00D9EAF7 /* ContentView.swift in Sources */,
 				E3E8168525E6A83B00D9EAF7 /* BacktraceApp.swift in Sources */,
 				E3E816AC25E6A9A800D9EAF7 /* Backtrace.swift in Sources */,
-				E3E816A325E6A96A00D9EAF7 /* mach_backtrace.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -356,9 +348,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E3A243E925ED42EE00EA3DE5 /* backtrace.c in Sources */,
 				E3E816AD25E6A9A800D9EAF7 /* Backtrace.swift in Sources */,
 				E3E8167725E6A83B00D9EAF7 /* Tests_iOS.swift in Sources */,
-				E3E816A425E6A96A00D9EAF7 /* mach_backtrace.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -366,9 +358,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E3A243EA25ED42EE00EA3DE5 /* backtrace.c in Sources */,
 				E3E816AE25E6A9A800D9EAF7 /* Backtrace.swift in Sources */,
 				E3E8168225E6A83B00D9EAF7 /* Tests_macOS.swift in Sources */,
-				E3E816A525E6A96A00D9EAF7 /* mach_backtrace.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -516,7 +508,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = cp.swift.Backtrace;
 				PRODUCT_NAME = Backtrace;
 				SDKROOT = iphoneos;
-				SWIFT_OBJC_BRIDGING_HEADER = "Shared/Backtrace (iOS)-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -540,7 +531,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = cp.swift.Backtrace;
 				PRODUCT_NAME = Backtrace;
 				SDKROOT = iphoneos;
-				SWIFT_OBJC_BRIDGING_HEADER = "Shared/Backtrace (iOS)-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
@@ -566,7 +556,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = cp.swift.Backtrace;
 				PRODUCT_NAME = Backtrace;
 				SDKROOT = macosx;
-				SWIFT_OBJC_BRIDGING_HEADER = "Shared/Backtrace (macOS)-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
@@ -591,7 +580,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = cp.swift.Backtrace;
 				PRODUCT_NAME = Backtrace;
 				SDKROOT = macosx;
-				SWIFT_OBJC_BRIDGING_HEADER = "Shared/Backtrace (macOS)-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -612,7 +600,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "cp.swift.Tests-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SWIFT_OBJC_BRIDGING_HEADER = "Shared/Tests iOS-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -636,7 +623,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "cp.swift.Tests-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SWIFT_OBJC_BRIDGING_HEADER = "Shared/Tests iOS-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = "Backtrace (iOS)";
@@ -661,7 +647,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "cp.swift.Tests-macOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
-				SWIFT_OBJC_BRIDGING_HEADER = "Shared/Tests macOS-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = "Backtrace (macOS)";
@@ -685,7 +670,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "cp.swift.Tests-macOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
-				SWIFT_OBJC_BRIDGING_HEADER = "Shared/Tests macOS-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = "Backtrace (macOS)";
 			};

@@ -12,7 +12,10 @@ struct ContentView: View {
         Text("Hello, world!")
             .padding()
         Button("Backtrace") {
-            Backtrace.setup()
+            print("这是系统方法的MainThreadStackSymbols")
+            print(Thread.callStackSymbols.joined(separator: "\n"))
+            print("这是Backtrace方法的MainThreadStackSymbols")
+            print(Backtrace.backtraceMainThread())
         }
     }
 }
