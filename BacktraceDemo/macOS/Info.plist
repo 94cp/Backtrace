@@ -22,9 +22,5 @@
 	<string>1</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
-	<key>SecTaskAccess</key>
-	<array>
-		<string>allowed</string>
-	</array>
 </dict>
 </plist>

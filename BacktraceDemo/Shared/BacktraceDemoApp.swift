@@ -1,14 +1,14 @@
 //
-//  BacktraceApp.swift
+//  BacktraceDemoApp.swift
 //  Shared
 //
-//  Created by cp on 2021/2/24.
+//  Created by chenp on 2021/3/22.
 //
 
 import SwiftUI
 
 @main
-struct BacktraceApp: App {
+struct BacktraceDemoApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
