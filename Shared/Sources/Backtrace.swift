@@ -7,6 +7,10 @@
 
 import Foundation
 
+/// 亦可在桥接文件中#import <execinfo.h>
+@_silgen_name("backtrace_symbols")
+private func backtrace_symbols(_ stack: UnsafePointer<UnsafeMutableRawPointer?>!, _ frames: Int32) -> UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>?
+
 #if arch(i386)
 
 private let THREAD_STATE_FLAVOR = x86_THREAD_STATE
@@ -38,7 +42,9 @@ public struct Backtrace {
         let prefix = "Backtrace of : \(thread.description)\n"
         var css: [String] = []
         if Thread.current == thread {
-            css = Thread.callStackSymbols
+            for symbol in Thread.callStackSymbols {
+                css.append(demangleSymbol(symbol))
+            }
         } else {
             let mach = machThread(from: thread)
             css = callStackSymbols(mach)
@@ -116,6 +122,17 @@ extension Backtrace {
 }
 
 extension Backtrace {
+    private static func demangleSymbol(_ symbol: String) -> String {
+        guard let regexp = try? NSRegularExpression(pattern: "^(?:\\S+ +){3}(\\S+) ", options: []),
+              let match = regexp.firstMatch(in: symbol, options: [], range: NSMakeRange(0, symbol.utf16.count)),
+              match.numberOfRanges > 1  else { return symbol }
+        
+        let sname = (symbol as NSString).substring(with: match.range(at: 1))
+        let demangleSname = swift_demangle(sname)
+
+        return symbol.replacingOccurrences(of: sname, with: demangleSname)
+    }
+    
     private static func callStackSymbols(_ thread: thread_t) -> [String] {
         let maxSize = 128
         let addrs = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: maxSize)
@@ -123,14 +140,27 @@ extension Backtrace {
         
         let count = backtrace(thread, stack: addrs, maxSize)
         var symbols: [String] = []
+        
+        // 方式1
         let buf = UnsafeBufferPointer(start: addrs, count: count)
         symbols = buf.enumerated().map({
             guard let addr = $0.element else {
                 return "<null>"
             }
-            return AddressInfo(address: UInt(bitPattern: addr)).formattedDescription(index: $0.offset)
+            return AddressInfo(address: UInt(bitPattern: addr), index: $0.offset).description
         })
-//        buf.deallocate()
+        
+        // 方式2
+//        if let bs = backtrace_symbols(addrs, Int32(count)) {
+//            symbols = UnsafeBufferPointer(start: bs, count: count).map {
+//                guard let symbol = $0 else {
+//                    return "<null>"
+//                }
+//                return demangleSymbol(String(cString: symbol))
+//            }
+//            free(bs)
+//        }
+        
         return symbols
     }
     
@@ -172,7 +202,7 @@ extension Backtrace {
         #endif
 
         /// 当前栈帧中FP的值存储的是上一个栈帧的FP地址
-        guard var cur__fp = UnsafeMutablePointer<UnsafeMutableRawPointer?>(bitPattern: UInt(__fp)) else { return 0 }
+        guard var cur__fp = UnsafeMutablePointer<UnsafeMutableRawPointer?>(bitPattern: UInt(__fp)) else { return i }
 //        defer { cur__fp.deinitialize(count: 1) }
         
         while i < maxSymbols  {

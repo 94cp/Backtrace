@@ -11,7 +11,6 @@ struct ContentView: View {
     var body: some View {
         Button("Main Call Stack") {
             DispatchQueue.global().async {
-                sleep(1)
                 print(Backtrace.backtraceMainThread())
             }
         }
@@ -22,13 +21,11 @@ struct ContentView: View {
         }
         Button("All Call Stack") {
             DispatchQueue.global().async {
-                sleep(1)
                 print(Backtrace.backtraceAllThread().joined(separator: "\n"))
             }
         }
         Button("Custom Call Stack") {
             DispatchQueue.global().async {
-                sleep(1)
                 let thread = Thread()
                 thread.name = "Custom"
                 print(Backtrace.backtrace(thread))

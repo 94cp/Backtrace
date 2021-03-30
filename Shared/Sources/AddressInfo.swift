@@ -11,6 +11,7 @@ import Foundation
 @_silgen_name("swift_demangle")
 private func get_swift_demangle(mangledName: UnsafePointer<CChar>?, mangledNameLength: UInt, outputBuffer: UnsafeMutablePointer<CChar>?, outputBufferSize: UnsafeMutablePointer<UInt>?, flags: UInt32) -> UnsafeMutablePointer<CChar>?
 
+/// 命名重整
 public func swift_demangle(_ mangledName: String) -> String {
     let cname = mangledName.withCString({ $0 })
     if let demangledName = get_swift_demangle(mangledName: cname, mangledNameLength: UInt(mangledName.utf8.count), outputBuffer: nil, outputBufferSize: nil, flags: 0) {
@@ -21,39 +22,38 @@ public func swift_demangle(_ mangledName: String) -> String {
 }
 
 // https://github.com/mattgallagher/CwlUtils/blob/master/Sources/CwlUtils/CwlAddressInfo.swift
-/// A wrapper around dl_info, used for symbolicating instruction addresses.
+/// 获取某地址符号信息
 public struct AddressInfo {
-    private let info: dl_info
+    private let dlInfo: dl_info
     
-    /// Address for which this struct was constructed
+    public let index: Int
+    
     public let address: UInt
     
-    /// Construct for an address
-    public init(address: UInt) {
+    public init(address: UInt, index: Int) {
+        self.index = index
         self.address = address
 
-        var i = dl_info()
-        dladdr(UnsafeRawPointer(bitPattern: address), &i)
-        self.info = i
+        var dlInfo = dl_info()
+        dladdr(UnsafeRawPointer(bitPattern: address), &dlInfo)
+        self.dlInfo = dlInfo
     }
     
-    /// -returns: the "image" (shared object pathname) for the instruction
     public var image: String {
-        if let dli_fname = info.dli_fname, let fname = String(validatingUTF8: dli_fname), let _ = fname.range(of: "/", options: .backwards, range: nil, locale: nil) {
+        if let dli_fname = dlInfo.dli_fname, let fname = String(validatingUTF8: dli_fname), let _ = fname.range(of: "/", options: .backwards, range: nil, locale: nil) {
             return (fname as NSString).lastPathComponent
         } else {
             return "???"
         }
     }
     
-    /// - returns: the symbol nearest the address
     public var symbol: String {
-        if let dli_sname = info.dli_sname, let sname = String(validatingUTF8: dli_sname) {
+        if let dli_sname = dlInfo.dli_sname, let sname = String(validatingUTF8: dli_sname) {
             return sname
-        } else if let dli_fname = info.dli_fname, let _ = String(validatingUTF8: dli_fname) {
+        } else if let dli_fname = dlInfo.dli_fname, let _ = String(validatingUTF8: dli_fname) {
             return self.image
         } else {
-            return String(format: "0x%1x", UInt(bitPattern: info.dli_saddr))
+            return String(format: "0x%1x", UInt(bitPattern: dlInfo.dli_saddr))
         }
     }
     
@@ -61,25 +61,22 @@ public struct AddressInfo {
         return swift_demangle(self.symbol)
     }
     
-    /// - returns: the address' offset relative to the nearest symbol
     public var offset: Int {
-        if let dli_sname = info.dli_sname, let _ = String(validatingUTF8: dli_sname) {
-            return Int(address - UInt(bitPattern: info.dli_saddr))
-        } else if let dli_fname = info.dli_fname, let _ = String(validatingUTF8: dli_fname) {
-            return Int(address - UInt(bitPattern: info.dli_fbase))
+        if let dli_sname = dlInfo.dli_sname, let _ = String(validatingUTF8: dli_sname) {
+            return Int(address - UInt(bitPattern: dlInfo.dli_saddr))
+        } else if let dli_fname = dlInfo.dli_fname, let _ = String(validatingUTF8: dli_fname) {
+            return Int(address - UInt(bitPattern: dlInfo.dli_fbase))
         } else {
-            return Int(address - UInt(bitPattern: info.dli_saddr))
+            return Int(address - UInt(bitPattern: dlInfo.dli_saddr))
         }
     }
     
-    /// - parameter index: the stack frame index
-    /// - returns: a formatted string matching that used by NSThread.callStackSymbols
-    public func formattedDescription(index: Int) -> String {
+    public var description: String {
         return self.image.utf8CString.withUnsafeBufferPointer { (imageBuffer: UnsafeBufferPointer<CChar>) -> String in
             #if arch(x86_64) || arch(arm64)
-                return String(format: "%-4ld%-35s 0x%016llx %@ + %ld", index, UInt(bitPattern: imageBuffer.baseAddress), self.address, self.demangleSymbol, self.offset)
+            return String(format: "%-4ld%-35s 0x%016llx %@ + %ld", self.index, UInt(bitPattern: imageBuffer.baseAddress), self.address, self.demangleSymbol, self.offset)
             #else
-                return String(format: "%-4d%-35s 0x%08lx %@ + %d", index, UInt(bitPattern: imageBuffer.baseAddress), self.address, self.demangleSymbol, self.offset)
+            return String(format: "%-4d%-35s 0x%08lx %@ + %d", self.index, UInt(bitPattern: imageBuffer.baseAddress), self.address, self.demangleSymbol, self.offset)
             #endif
         }
     }
