@@ -7,35 +7,13 @@
 
 import Foundation
 
+/// 亦可在桥接文件中#import "backtrace.h"
+@_silgen_name("cbacktrace")
+private func cbacktrace(_ thread: thread_t, stack: UnsafeMutablePointer<UnsafeMutableRawPointer?>!, _ maxSymbols: Int32) -> Int32
+
 /// 亦可在桥接文件中#import <execinfo.h>
 @_silgen_name("backtrace_symbols")
 private func backtrace_symbols(_ stack: UnsafePointer<UnsafeMutableRawPointer?>!, _ frames: Int32) -> UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>?
-
-#if arch(i386)
-
-private let THREAD_STATE_FLAVOR = x86_THREAD_STATE
-private let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<x86_thread_state_t>.size / MemoryLayout<Int32>.size)
-
-#elseif arch(x86_64)
-
-private let THREAD_STATE_FLAVOR = x86_THREAD_STATE64
-private let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<x86_thread_state64_t>.size / MemoryLayout<Int32>.size)
-
-#elseif arch(arm)
-
-private let THREAD_STATE_FLAVOR = ARM_THREAD_STATE
-private let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<arm_thread_state_t>.size / MemoryLayout<Int32>.size)
-
-#elseif arch(arm64)
-
-private let THREAD_STATE_FLAVOR = ARM_THREAD_STATE64
-private let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<arm_thread_state64_t>.size / MemoryLayout<Int32>.size)
-
-#else
-
-#error("Current CPU Architecture is not supported")
-
-#endif
 
 public struct Backtrace {
     public static func backtrace(_ thread: Thread) -> String {
@@ -63,15 +41,17 @@ public struct Backtrace {
     public static func backtraceAllThread() -> [String] {
         var count: mach_msg_type_number_t = 0
         var threads: thread_act_array_t!
-//        defer { threads.deinitialize(count: Int(count))}
+        
+        var symbols: [String] = []
         
         if task_threads(mach_task_self_, &(threads), &count) != KERN_SUCCESS {
-            count = 1
-            threads = thread_act_array_t.allocate(capacity: 1)
-            threads.initialize(to: mach_thread_self())
+            let mach = mach_thread_self()
+            let css = callStackSymbols(mach)
+            let prefix = "Backtrace of : \(mach.description)\n"
+            symbols.append(prefix + css.joined(separator: "\n"))
+            return symbols
         }
     
-        var symbols: [String] = []
         for i in 0..<count {
             let mach = threads[Int(i)]
             let css = callStackSymbols(mach)
@@ -85,7 +65,6 @@ public struct Backtrace {
 }
 
 extension Backtrace {
-    /// 主要利用了Thread 和 pThread 共用一个Name的特性，找到对应 thread的内核线程thread_t
     private static func machThread(from thread: Thread) -> thread_t {
         var count: mach_msg_type_number_t = 0
         var threads: thread_act_array_t!
@@ -94,7 +73,6 @@ extension Backtrace {
             return mach_thread_self()
         }
 
-        /// 如果当前线程不是主线程，但是需要获取主线程的堆栈
         if !Thread.isMainThread && thread.isMainThread && main_thread_t == nil {
             DispatchQueue.main.sync {
                 main_thread_t = mach_thread_self()
@@ -138,33 +116,65 @@ extension Backtrace {
         let addrs = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: maxSize)
         defer { addrs.deallocate() }
         
+        // Swift 方式1
         let count = backtrace(thread, stack: addrs, maxSize)
+        // C 方式2
+//        let count = Int(cbacktrace(thread, stack: addrs, Int32(maxSize)))
+        
         var symbols: [String] = []
         
-        // 方式1
-        let buf = UnsafeBufferPointer(start: addrs, count: count)
-        symbols = buf.enumerated().map({
-            guard let addr = $0.element else {
-                return "<null>"
-            }
-            return AddressInfo(address: UInt(bitPattern: addr), index: $0.offset).description
-        })
-        
-        // 方式2
-//        if let bs = backtrace_symbols(addrs, Int32(count)) {
-//            symbols = UnsafeBufferPointer(start: bs, count: count).map {
-//                guard let symbol = $0 else {
-//                    return "<null>"
-//                }
-//                return demangleSymbol(String(cString: symbol))
+        // 命名重整 方式1
+//        let buf = UnsafeBufferPointer(start: addrs, count: count)
+//        symbols = buf.enumerated().map({
+//            guard let addr = $0.element else {
+//                return "<null>"
 //            }
-//            free(bs)
-//        }
+//            return AddressInfo(address: UInt(bitPattern: addr), index: $0.offset).description
+//        })
+        
+        // 命名重整 方式2
+
+        if let bs = backtrace_symbols(addrs, Int32(count)) {
+            symbols = UnsafeBufferPointer(start: bs, count: count).map {
+                guard let symbol = $0 else {
+                    return "<null>"
+                }
+                return demangleSymbol(String(cString: symbol))
+            }
+            free(bs)
+        }
+ 
         
         return symbols
     }
     
     private static func backtrace(_ thread: thread_t, stack: UnsafeMutablePointer<UnsafeMutableRawPointer?>, _ maxSymbols: Int) -> Int {
+        #if arch(i386)
+
+        let THREAD_STATE_FLAVOR = x86_THREAD_STATE
+        let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<x86_thread_state_t>.size / MemoryLayout<Int32>.size)
+
+        #elseif arch(x86_64)
+
+        let THREAD_STATE_FLAVOR = x86_THREAD_STATE64
+        let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<x86_thread_state64_t>.size / MemoryLayout<Int32>.size)
+
+        #elseif arch(arm)
+
+        let THREAD_STATE_FLAVOR = ARM_THREAD_STATE
+        let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<arm_thread_state_t>.size / MemoryLayout<Int32>.size)
+
+        #elseif arch(arm64)
+
+        let THREAD_STATE_FLAVOR = ARM_THREAD_STATE64
+        let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<arm_thread_state64_t>.size / MemoryLayout<Int32>.size)
+
+        #else
+
+        #error("Current CPU Architecture is not supported")
+
+        #endif
+        
         let mc = mcontext_t.allocate(capacity: 1)
         defer { mc.deallocate() }
         
@@ -184,9 +194,8 @@ extension Backtrace {
         
         #if arch(arm) || arch(arm64)
         // __lr链接寄存器，保存返回上一层调用的地址
-        if let __lr = UnsafeMutablePointer<UnsafeMutableRawPointer?>(bitPattern: UInt(mContext.__ss.__lr)) {
-//            defer { __lr.deinitialize(count: 1) }
-            stack[i] = __lr.pointee
+        if let __lr = UnsafeMutableRawPointer(bitPattern: UInt(mContext.__ss.__lr)) {
+            stack[i] = __lr
             i += 1
         }
         #endif
@@ -200,14 +209,12 @@ extension Backtrace {
         #elseif arch(arm64)
         let __fp = mContext.__ss.__fp
         #endif
-
+        
         /// 当前栈帧中FP的值存储的是上一个栈帧的FP地址
         guard var cur__fp = UnsafeMutablePointer<UnsafeMutableRawPointer?>(bitPattern: UInt(__fp)) else { return i }
-//        defer { cur__fp.deinitialize(count: 1) }
         
         while i < maxSymbols  {
             guard let pre__fp = UnsafeMutablePointer<UnsafeMutableRawPointer?>(bitPattern: UInt(bitPattern: cur__fp.pointee)) else { return i }
-//            defer { pre__fp.deinitialize(count: 1) }
             
             stack[i] = cur__fp.successor().pointee
             cur__fp = pre__fp
@@ -217,35 +224,6 @@ extension Backtrace {
         return i
     }
 }
-
-/**
- 
- int mach_backtrace(thread_t thread, void** stack, int maxSymbols) {
-     _STRUCT_MCONTEXT machineContext;
-     mach_msg_type_number_t stateCount = THREAD_STATE_COUNT;
-     
-     kern_return_t kret = thread_get_state(thread, THREAD_STATE_FLAVOR, (thread_state_t)&(machineContext.__ss), &stateCount);
-     if (kret != KERN_SUCCESS) {
-         return 0;
-     }
-
-     int i = 0;
- #if defined(__arm__) || defined (__arm64__)
-     stack[i] = (void *)machineContext.__ss.__lr;
-     ++i;
- #endif
-     void **currentFramePointer = (void **)machineContext.__ss.__framePointer;
-     while (i < maxSymbols && currentFramePointer) {
-         void **previousFramePointer = *currentFramePointer;
-         if (!previousFramePointer) break;
-         stack[i] = *(currentFramePointer+1);
-         currentFramePointer = previousFramePointer;
-         ++i;
-     }
-     return i;
- }
- 
- */
 
 /**
  *  fill a backtrace call stack array of given thread

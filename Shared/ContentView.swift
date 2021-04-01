@@ -24,13 +24,6 @@ struct ContentView: View {
                 print(Backtrace.backtraceAllThread().joined(separator: "\n"))
             }
         }
-        Button("Custom Call Stack") {
-            DispatchQueue.global().async {
-                let thread = Thread()
-                thread.name = "Custom"
-                print(Backtrace.backtrace(thread))
-            }
-        }
     }
 }
 
