@@ -5,91 +5,115 @@
 //  Created by chenp on 2021/2/21.
 //
 
+/// https://github.com/woshiccm/RCBacktrace
+/// https://github.com/bestswifter/blog/blob/master/articles/objc-thread-backtrace.md
+
 import Foundation
 
-/// 亦可在桥接文件中#import "backtrace.h"
-@_silgen_name("cbacktrace")
-private func cbacktrace(_ thread: thread_t, stack: UnsafeMutablePointer<UnsafeMutableRawPointer?>!, _ maxSymbols: Int32) -> Int32
-
 /// 亦可在桥接文件中#import <execinfo.h>
+/// 函数调用栈符号化
+/// - Parameters:
+///   - stack: 函数调用栈
+///   - frames: 函数调用栈层数
 @_silgen_name("backtrace_symbols")
 private func backtrace_symbols(_ stack: UnsafePointer<UnsafeMutableRawPointer?>!, _ frames: Int32) -> UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>?
 
+/// https://github.com/apple/swift/blob/main/include/swift/Demangling/Demangle.h
+@_silgen_name("swift_demangle")
+private func get_swift_demangle(mangledName: UnsafePointer<CChar>?, mangledNameLength: UInt, outputBuffer: UnsafeMutablePointer<CChar>?, outputBufferSize: UnsafeMutablePointer<UInt>?, flags: UInt32) -> UnsafeMutablePointer<CChar>?
+
+/// 命名重整
+private func swift_demangle(_ mangledName: String) -> String {
+    let cname = mangledName.withCString({ $0 })
+    if let demangledName = get_swift_demangle(mangledName: cname, mangledNameLength: UInt(mangledName.utf8.count), outputBuffer: nil, outputBufferSize: nil, flags: 0) {
+        defer { free(demangledName) }
+        return String(cString: demangledName)
+    }
+    return mangledName
+}
+
 public struct Backtrace {
-    public static func backtrace(_ thread: Thread) -> String {
-        let prefix = "Backtrace of : \(thread.description)\n"
-        var css: [String] = []
-        if Thread.current == thread {
-            for symbol in Thread.callStackSymbols {
-                css.append(demangleSymbol(symbol))
-            }
-        } else {
-            let mach = machThread(from: thread)
-            css = callStackSymbols(mach)
-        }
-        return prefix +  css.joined(separator: "\n")
-    }
-    
-    public static func backtraceMainThread() -> String {
-        return backtrace(Thread.main)
-    }
-    
-    public static func backtraceCurrentThread() -> String {
-        return backtrace(Thread.current)
-    }
-    
-    public static func backtraceAllThread() -> [String] {
-        var count: mach_msg_type_number_t = 0
-        var threads: thread_act_array_t!
-        
-        var symbols: [String] = []
-        
-        if task_threads(mach_task_self_, &(threads), &count) != KERN_SUCCESS {
-            let mach = mach_thread_self()
-            let css = callStackSymbols(mach)
-            let prefix = "Backtrace of : \(mach.description)\n"
-            symbols.append(prefix + css.joined(separator: "\n"))
-            return symbols
-        }
-    
-        for i in 0..<count {
-            let mach = threads[Int(i)]
-            let css = callStackSymbols(mach)
-            let prefix = "Backtrace of : thread \(i + 1)\n"
-            symbols.append(prefix + css.joined(separator: "\n"))
+    public static func callStackSymbols(_ thread: Thread, prefix: Bool = true) -> [String] {
+        let mach = thread.machThread
+        var symbols = mach.callStackSymbols
+        if prefix {
+            let prefix = "Backtrace of : \(mach.description)"
+            symbols.insert(prefix, at: 0)
         }
         return symbols
     }
     
-    public static var main_thread_t: mach_port_t?
-}
-
-extension Backtrace {
-    private static func machThread(from thread: Thread) -> thread_t {
+    public static func callStackSymbolsOfMain(prefix: Bool = true) -> [String] {
+        return callStackSymbols(.main, prefix: prefix)
+    }
+    
+    public static func callStackSymbolsOfCurrent(prefix: Bool = true) -> [String] {
+        return callStackSymbols(.current, prefix: prefix)
+    }
+    
+    public static func callStackSymbolsOfAll(prefix: Bool = true) -> [[String]] {
+        var allSymbols: [[String]] = []
+        
         var count: mach_msg_type_number_t = 0
         var threads: thread_act_array_t!
-    
-        guard task_threads(mach_task_self_, &(threads), &count) == KERN_SUCCESS else {
-            return mach_thread_self()
+        
+        // 获取所有内核 thread
+        if task_threads(mach_task_self_, &(threads), &count) != KERN_SUCCESS {
+            let mach = mach_thread_self()
+            var symbols = mach.callStackSymbols
+            if prefix {
+                let prefix = "Backtrace of : \(mach.description)"
+                symbols.insert(prefix, at: 0)
+            }
+            allSymbols.append(symbols)
+        } else {
+            for i in 0..<count {
+                let mach = threads[Int(i)]
+                var symbols = mach.callStackSymbols
+                if prefix {
+                    let prefix = "Backtrace of : \(mach.description)"
+                    symbols.insert(prefix, at: 0)
+                }
+                allSymbols.append(symbols)
+            }
         }
+        return allSymbols
+    }
+}
 
-        if !Thread.isMainThread && thread.isMainThread && main_thread_t == nil {
-            DispatchQueue.main.sync {
-                main_thread_t = mach_thread_self()
+extension Thread {
+    /// NSThread 转内核 thread
+    fileprivate var machThread: thread_t {
+        // 主线程转内核 thread（主线程设置 name 后无法用 pthread_getname_np 读取到）
+        if isMainThread {
+            var main_thread_t: thread_t?
+            if !Thread.isMainThread {
+                DispatchQueue.main.sync {
+                    main_thread_t = mach_thread_self()
+                }
             }
             return main_thread_t ?? mach_thread_self()
         }
         
-        let originName = thread.name
-        defer { thread.name = originName }
+        var count: mach_msg_type_number_t = 0
+        var threads: thread_act_array_t!
+    
+        // 获取所有内核 thread
+        guard task_threads(mach_task_self_, &(threads), &count) == KERN_SUCCESS else {
+            return mach_thread_self()
+        }
         
-        thread.name = String(Int(Date.init().timeIntervalSince1970))
+        let originName = name
+        defer { name = originName }
+
+        name = String(Int(Date().timeIntervalSince1970))
+        
         for i in 0..<count {
             let machThread = threads[Int(i)]
             if let p_thread = pthread_from_mach_thread_np(machThread) {
                 var name: [Int8] = Array<Int8>(repeating: 0, count: 128)
                 pthread_getname_np(p_thread, &name, name.count)
-                if thread.name == String(cString: name) {
+                if self.name == String(cString: name) {
                     return machThread
                 }
             }
@@ -99,8 +123,83 @@ extension Backtrace {
     }
 }
 
-extension Backtrace {
-    private static func demangleSymbol(_ symbol: String) -> String {
+extension thread_t {
+    fileprivate var callStackSymbols: [String] {
+        let maxSize = 128
+        let addrs = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: maxSize)
+        defer { addrs.deallocate() }
+        
+        let count = backtrace(addrs, maxSize)
+        var symbols: [String] = []
+        
+        // 命名重整 方式1
+        let buf = UnsafeBufferPointer(start: addrs, count: count)
+        symbols = buf.enumerated().map({
+            guard let addr = $0.element else {
+                return "<null>"
+            }
+            return dlSymbol(UInt(bitPattern: addr), $0.offset)
+        })
+        
+//        // 命名重整 方式2
+//        if let bs = backtrace_symbols(addrs, Int32(count)) {
+//            symbols = UnsafeBufferPointer(start: bs, count: count).map {
+//                guard let symbol = $0 else {
+//                    return "<null>"
+//                }
+//                return demangleSymbol(String(cString: symbol))
+//            }
+//            free(bs)
+//        }
+//
+        return symbols
+    }
+}
+
+extension thread_t {
+    /// dladdr获取某个地址的符号信息
+    private func dlSymbol(_ address: UInt, _ index: Int) -> String {
+        var dlInfo = dl_info()
+        dladdr(UnsafeRawPointer(bitPattern: address), &dlInfo)
+        
+        var image = "??"
+        if let dli_fname = dlInfo.dli_fname,
+           let fname = String(validatingUTF8: dli_fname),
+           let _ = fname.range(of: "/", options: .backwards, range: nil, locale: nil) {
+            image = (fname as NSString).lastPathComponent
+        }
+        
+        var symbol = "??"
+        if let dli_sname = dlInfo.dli_sname, let sname = String(validatingUTF8: dli_sname) {
+            symbol = sname
+        } else if let dli_fname = dlInfo.dli_fname, let _ = String(validatingUTF8: dli_fname), image != "??" {
+            symbol = image
+        } else {
+            symbol = String(format: "0x%1x", UInt(bitPattern: dlInfo.dli_saddr))
+        }
+        
+        let demangleSymbol = swift_demangle(symbol)
+        
+        var offset: UInt = 0
+        if let dli_sname = dlInfo.dli_sname, let _ = String(validatingUTF8: dli_sname) {
+            offset = address - UInt(bitPattern: dlInfo.dli_saddr)
+        } else if let dli_fname = dlInfo.dli_fname, let _ = String(validatingUTF8: dli_fname) {
+            offset = address - UInt(bitPattern: dlInfo.dli_fbase)
+        } else {
+            offset = address - UInt(bitPattern: dlInfo.dli_saddr)
+        }
+        
+        return image.utf8CString.withUnsafeBufferPointer { (imageBuffer: UnsafeBufferPointer<CChar>) -> String in
+            #if arch(x86_64) || arch(arm64)
+            return String(format: "%-4ld%-35s 0x%016llx %@ + %ld", index, UInt(bitPattern: imageBuffer.baseAddress), address, demangleSymbol, offset)
+            #else
+            return String(format: "%-4d%-35s 0x%08lx %@ + %d", index, UInt(bitPattern: imageBuffer.baseAddress), address, demangleSymbol, offset)
+            #endif
+        }
+    }
+    
+    /// 命名重整
+    private func demangleSymbol(_ symbol: String) -> String {
         guard let regexp = try? NSRegularExpression(pattern: "^(?:\\S+ +){3}(\\S+) ", options: []),
               let match = regexp.firstMatch(in: symbol, options: [], range: NSMakeRange(0, symbol.utf16.count)),
               match.numberOfRanges > 1  else { return symbol }
@@ -110,70 +209,28 @@ extension Backtrace {
 
         return symbol.replacingOccurrences(of: sname, with: demangleSname)
     }
-    
-    private static func callStackSymbols(_ thread: thread_t) -> [String] {
-        let maxSize = 128
-        let addrs = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: maxSize)
-        defer { addrs.deallocate() }
-        
-        // Swift 方式1
-        let count = backtrace(thread, stack: addrs, maxSize)
-        // C 方式2
-//        let count = Int(cbacktrace(thread, stack: addrs, Int32(maxSize)))
-        
-        var symbols: [String] = []
-        
-        // 命名重整 方式1
-//        let buf = UnsafeBufferPointer(start: addrs, count: count)
-//        symbols = buf.enumerated().map({
-//            guard let addr = $0.element else {
-//                return "<null>"
-//            }
-//            return AddressInfo(address: UInt(bitPattern: addr), index: $0.offset).description
-//        })
-        
-        // 命名重整 方式2
+}
 
-        if let bs = backtrace_symbols(addrs, Int32(count)) {
-            symbols = UnsafeBufferPointer(start: bs, count: count).map {
-                guard let symbol = $0 else {
-                    return "<null>"
-                }
-                return demangleSymbol(String(cString: symbol))
-            }
-            free(bs)
-        }
- 
-        
-        return symbols
-    }
-    
-    private static func backtrace(_ thread: thread_t, stack: UnsafeMutablePointer<UnsafeMutableRawPointer?>, _ maxSymbols: Int) -> Int {
+extension thread_t {
+    // 获取 内核 thread 调用栈信息
+    private func backtrace(_ stack: UnsafeMutablePointer<UnsafeMutableRawPointer?>, _ maxSymbols: Int) -> Int {
         #if arch(i386)
-
         let THREAD_STATE_FLAVOR = x86_THREAD_STATE
         let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<x86_thread_state_t>.size / MemoryLayout<Int32>.size)
-
         #elseif arch(x86_64)
-
         let THREAD_STATE_FLAVOR = x86_THREAD_STATE64
         let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<x86_thread_state64_t>.size / MemoryLayout<Int32>.size)
-
         #elseif arch(arm)
-
         let THREAD_STATE_FLAVOR = ARM_THREAD_STATE
-        let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<arm_thread_state_t>.size / MemoryLayout<Int32>.size)
-
+        let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<arm_thread_state_t>.size / MemoryLayout<UInt32>.size)
         #elseif arch(arm64)
-
         let THREAD_STATE_FLAVOR = ARM_THREAD_STATE64
-        let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<arm_thread_state64_t>.size / MemoryLayout<Int32>.size)
-
+        let THREAD_STATE_COUNT = mach_msg_type_number_t(MemoryLayout<arm_thread_state64_t>.size / MemoryLayout<UInt32>.size)
         #else
-
         #error("Current CPU Architecture is not supported")
-
         #endif
+        
+        var i = 0
         
         let mc = mcontext_t.allocate(capacity: 1)
         defer { mc.deallocate() }
@@ -183,105 +240,63 @@ extension Backtrace {
         
         let kret = withUnsafeMutablePointer(to: &(mContext.__ss)) {
             $0.withMemoryRebound(to: natural_t.self, capacity: 1) {
-                thread_get_state(thread, THREAD_STATE_FLAVOR, $0, &stateCount)
+                thread_get_state(self, THREAD_STATE_FLAVOR, $0, &stateCount)
             }
         }
-        if kret != KERN_SUCCESS {
-            return 0
-        }
+        if kret != KERN_SUCCESS { return i }
         
-        var i = 0
+        #if arch(i386)
+        let __fp = mContext.__ss.__ebp
+        let __pc = mContext.__ss.__eip
+        #elseif arch(x86_64)
+        let __fp = mContext.__ss.__rbp
+        let __pc = mContext.__ss.__rip
+        #elseif arch(arm)
+        let __fp = mContext.__ss.__r[7]
+        let __pc = mContext.__ss.__pc
+        let __lr = mContext.__ss.__lr
+        #elseif arch(arm64)
+        let __fp = mContext.__ss.__fp
+        let __pc = mContext.__ss.__pc
+        let __lr = mContext.__ss.__lr
+        #endif
+        
+        // 指令地址（指令寄存器存储，指向处理器下条等待执行的指令地址（代码内的偏移量），每次执行完 __pc 会增加）
+        guard __pc > 0, let pc = UnsafeMutableRawPointer(bitPattern: UInt(__pc)) else { return i }
+        stack[i] = pc
+        i += 1
         
         #if arch(arm) || arch(arm64)
         // __lr链接寄存器，保存返回上一层调用的地址
-        if let __lr = UnsafeMutableRawPointer(bitPattern: UInt(mContext.__ss.__lr)) {
-            stack[i] = __lr
+        if __lr > 0, let lr = UnsafeMutableRawPointer(bitPattern: UInt(__lr)) {
+            stack[i] = lr
             i += 1
         }
         #endif
         
-        #if arch(i386)
-        let __fp = mContext.__ss.__ebp
-        #elseif arch(x86_64)
-        let __fp = mContext.__ss.__rbp
-        #elseif arch(arm)
-        let __fp = mContext.__ss.__r[7]
-        #elseif arch(arm64)
-        let __fp = mContext.__ss.__fp
-        #endif
+        // 当前栈帧中FP的值存储的是上一个栈帧的FP地址
+        guard __fp > 0 else { return i }
         
-        /// 当前栈帧中FP的值存储的是上一个栈帧的FP地址
-        guard var cur__fp = UnsafeMutablePointer<UnsafeMutableRawPointer?>(bitPattern: UInt(__fp)) else { return i }
+        let sf = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1) // 栈帧
+        defer { sf.deallocate() }
         
-        while i < maxSymbols  {
-            guard let pre__fp = UnsafeMutablePointer<UnsafeMutableRawPointer?>(bitPattern: UInt(bitPattern: cur__fp.pointee)) else { return i }
+        var outsize: vm_size_t = 0
+        let size: vm_size_t = vm_size_t(MemoryLayout.size(ofValue: sf) * 2)
+        
+        var sf_kret = vm_read_overwrite(mach_task_self_, vm_address_t(__fp), size, vm_address_t(bitPattern: sf), &outsize)
+        if sf_kret != KERN_SUCCESS { return i }
+        
+        while i < maxSymbols {
+            guard let next_fp = sf.successor().pointee else { return i }
+            stack[i] = next_fp
             
-            stack[i] = cur__fp.successor().pointee
-            cur__fp = pre__fp
+            guard let prev_fp = sf.pointee, UInt(bitPattern: prev_fp) > 0 else { return i }
+            sf_kret = vm_read_overwrite(mach_task_self_, vm_address_t(bitPattern: prev_fp), size, vm_address_t(bitPattern: sf), &outsize)
+            if sf_kret != KERN_SUCCESS { return i }
+            
             i += 1
         }
         
         return i
     }
 }
-
-/**
- *  fill a backtrace call stack array of given thread
- *
- *  Stack frame structure for x86/x86_64:
- *
- *    | ...                   |
- *    +-----------------------+ hi-addr     ------------------------
- *    | func0 ip              |
- *    +-----------------------+
- *    | func0 bp              |--------|     stack frame of func1
- *    +-----------------------+        v
- *    | saved registers       |  bp <- sp
- *    +-----------------------+   |
- *    | local variables...    |   |
- *    +-----------------------+   |
- *    | func2 args            |   |
- *    +-----------------------+   |         ------------------------
- *    | func1 ip              |   |
- *    +-----------------------+   |
- *    | func1 bp              |<--+          stack frame of func2
- *    +-----------------------+
- *    | ...                   |
- *    +-----------------------+ lo-addr     ------------------------
- *
- *  list we need to get is `ip` from bottom to top
- *
- *
- *  Stack frame structure for arm/arm64:
- *
- *    | ...                   |
- *    +-----------------------+ hi-addr     ------------------------
- *    | func0 lr              |
- *    +-----------------------+
- *    | func0 fp              |--------|     stack frame of func1
- *    +-----------------------+        v
- *    | saved registers       |  fp <- sp
- *    +-----------------------+   |
- *    | local variables...    |   |
- *    +-----------------------+   |
- *    | func2 args            |   |
- *    +-----------------------+   |         ------------------------
- *    | func1 lr              |   |
- *    +-----------------------+   |
- *    | func1 fp              |<--+          stack frame of func2
- *    +-----------------------+
- *    | ...                   |
- *    +-----------------------+ lo-addr     ------------------------
- *
- *  when function return, first jump to lr, then restore lr
- *  (namely first address in list is current lr)
- *
- *  fp (frame pointer) is r7 register under ARM and fp register in ARM64
- *  reference: iOS ABI Function Call Guide https://developer.apple.com/library/ios/documentation/Xcode/Conceptual/iPhoneOSABIReference/Articles/ARMv7FunctionCallingConventions.html#//apple_ref/doc/uid/TP40009022-SW1
- *
- *  @param thread   mach thread for tracing
- *  @param stack    caller space for saving stack trace info
- *  @param maxSymbols max stack array count
- *
- *  @return call stack address array
- */

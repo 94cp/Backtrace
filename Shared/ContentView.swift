@@ -11,17 +11,22 @@ struct ContentView: View {
     var body: some View {
         Button("Main Call Stack") {
             DispatchQueue.global().async {
-                print(Backtrace.backtraceMainThread())
+                print(Backtrace.callStackSymbolsOfMain().joined(separator: "\n"))
             }
         }
         Button("Current Call Stack") {
             DispatchQueue.global().async {
-                print(Backtrace.backtraceCurrentThread())
+                print(Backtrace.callStackSymbolsOfCurrent().joined(separator: "\n"))
             }
         }
         Button("All Call Stack") {
             DispatchQueue.global().async {
-                print(Backtrace.backtraceAllThread().joined(separator: "\n"))
+                print(Backtrace.callStackSymbolsOfAll().map({ $0.joined(separator: "\n") }).joined(separator: "\n"))
+            }
+        }
+        Button("Thread Current Call Stack") {
+            DispatchQueue.global().async {
+                print(Thread.callStackSymbols.joined(separator: "\n"))
             }
         }
     }
