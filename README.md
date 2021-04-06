@@ -20,7 +20,7 @@
 
 下面这个是ARM的栈帧布局图：
 
-
+![StackFrame](https://github.com/cp110/Backtrace/blob/main/Screenshots/StackFrame.png)
 
 main stack frame为调用函数的栈帧，func1 stack frame为当前函数(被调用者)的栈帧，栈底在高地址，栈向下增长。图中FP就是栈基址，它指向函数的栈帧起始地址；SP则是函数的栈指针，它指向栈顶的位置。ARM压栈的顺序很是规矩，依次为当前函数指针PC、返回指针LR、栈指针SP、栈基址FP、传入参数个数及指针、本地变量和临时变量。如果函数准备调用另一个函数，跳转之前临时变量区先要保存另一个函数的参数。
 
