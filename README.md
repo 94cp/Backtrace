@@ -1,8 +1,8 @@
-# Swift获取任意线程调用栈
+# 一次半失败的Swift获取任意线程调用栈之旅
 
 ## 前言
 
-研究了一些获取任意线程调用栈的开源库，基本是从[BSBacktraceLogger](https://github.com/bestswifter/BSBacktraceLogger)或[KSCrash](https://github.com/kstenerud/KSCrash)衍生出来的，核心实现都是C语言，无纯Swift实现的，所以搞了个[Backtrace](https://github.com/cp110/Backtrace)。
+研究了一些获取任意线程调用栈的开源库，基本是从[BSBacktraceLogger](https://github.com/bestswifter/BSBacktraceLogger)或[KSCrash](https://github.com/kstenerud/KSCrash)衍生出来的，核心实现都是C语言，无纯Swift实现的，所以想搞个纯Swift获取任意线程调用栈库。
 
 ## 什么情况需要获取线程调用栈
 
@@ -23,32 +23,6 @@
 ![StackFrame](https://github.com/cp110/Backtrace/blob/main/Screenshots/StackFrame.png)
 
 main stack frame为调用函数的栈帧，func1 stack frame为当前函数(被调用者)的栈帧，栈底在高地址，栈向下增长。图中FP就是栈基址，它指向函数的栈帧起始地址；SP则是函数的栈指针，它指向栈顶的位置。ARM压栈的顺序很是规矩，依次为当前函数指针PC、返回指针LR、栈指针SP、栈基址FP、传入参数个数及指针、本地变量和临时变量。如果函数准备调用另一个函数，跳转之前临时变量区先要保存另一个函数的参数。
-
-## Mach_thread获取线程调用栈
-
-从上图我们可以看到当前栈帧中FP的值存储的是上一个栈帧的FP地址。拿到本函数的FP寄存器，所指示的栈地址，出栈，就能得到调用函数的LR寄存器的值，然后就能通过dynsym动态链接表，找到对应的函数名。
-
-```swift
-let sf = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1) // 栈帧
-defer { sf.deallocate() }
-
-var outsize: vm_size_t = 0
-let size: vm_size_t = vm_size_t(MemoryLayout.size(ofValue: sf) * 2)
-    
-var sf_kret = vm_read_overwrite(mach_task_self_, vm_address_t(__fp), size, vm_address_t(bitPattern: sf), &outsize)
-if sf_kret != KERN_SUCCESS { return i }
-
-while i < maxSymbols {
-  guard let next_fp = sf.successor().pointee else { return i }
-  stack[i] = next_fp
-        
-  guard let prev_fp = sf.pointee else { return i }
-  sf_kret = vm_read_overwrite(mach_task_self_, vm_address_t(bitPattern: prev_fp), size, vm_address_t(bitPattern: sf), &outsize)
-  if sf_kret != KERN_SUCCESS { return i }
-        
-  i += 1
-}
-```
 
 ## NSThread 转 Mach_thread
 
@@ -160,9 +134,9 @@ return image.utf8CString.withUnsafeBufferPointer { (imageBuffer: UnsafeBufferPoi
 private func get_swift_demangle(mangledName: UnsafePointer<CChar>?, mangledNameLength: UInt, outputBuffer: UnsafeMutablePointer<CChar>?, outputBufferSize: UnsafeMutablePointer<UInt>?, flags: UInt32) -> UnsafeMutablePointer<CChar>?
 ```
 
-## 总结
+## 以上一切顺利，但在Mach_thread获取线程调用栈时失败了
 
-以上[Backtrace](https://github.com/cp110/Backtrace)一些简单分析，它实现仅有**Backtrace.swift**一个文件，不到300行代码。但在编码过程中还是遇到了些问题的。
+从上面调用栈示意图中我们可以看到当前栈帧中FP的值存储的是上一个栈帧的FP地址。拿到本函数的FP寄存器，所指示的栈地址，出栈，就能得到调用函数的LR寄存器的值，然后就能通过dynsym动态链接表，找到对应的函数名。
 
 一开始参考[RCBacktrace](https://github.com/woshiccm/RCBacktrace)的**mach_backtrace.c**实现，核心代码如下，但在运行过程中偶尔会因为获取`cur__fp.pointee`时发生**EXC_BAD_ACCESS**崩溃。
 
@@ -215,7 +189,31 @@ while i < maxSymbols {
 }
 ```
 
-最后算是综合了两者，实现此[Backtrace](https://github.com/cp110/Backtrace)。如果你读完本文，知道为什么上面2种方式无法生效的原因，欢迎与我交流。
+最后综合了前两者，丢失栈帧有所好转，但仍然无法保证获取到完整的调用栈信息。核心代码如下。
+
+```swift
+let sf = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1) // 栈帧
+defer { sf.deallocate() }
+
+var outsize: vm_size_t = 0
+let size: vm_size_t = vm_size_t(MemoryLayout.size(ofValue: sf) * 2)
+    
+var sf_kret = vm_read_overwrite(mach_task_self_, vm_address_t(__fp), size, vm_address_t(bitPattern: sf), &outsize)
+if sf_kret != KERN_SUCCESS { return i }
+
+while i < maxSymbols {
+  guard let next_fp = sf.successor().pointee else { return i }
+  stack[i] = next_fp
+        
+  guard let prev_fp = sf.pointee else { return i }
+  sf_kret = vm_read_overwrite(mach_task_self_, vm_address_t(bitPattern: prev_fp), size, vm_address_t(bitPattern: sf), &outsize)
+  if sf_kret != KERN_SUCCESS { return i }
+        
+  i += 1
+}
+```
+
+最后，如果你读到本文，知道为什么以上方式无法生效的原因，或者有什么更好的方法，欢迎与我交流。
 
 ## 参考
 
